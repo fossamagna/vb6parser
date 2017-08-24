@@ -11,6 +11,8 @@ package io.proleap.vb6.asg.metamodel;
 import java.util.List;
 import java.util.Map;
 
+import org.antlr.v4.runtime.CommonTokenStream;
+
 import io.proleap.vb6.VisualBasic6Parser.AttributeStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.DeclareStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.DeftypeStmtContext;
@@ -89,18 +91,32 @@ public interface Module extends Scope, ComplexType {
 
 	Function getFunction(String name);
 
+	List<Function> getFunctions();
+
 	List<String> getLines();
+
+	List<Procedure> getProcedures();
 
 	@Override
 	Program getProgram();
 
 	PropertyGet getPropertyGet(String name);
 
+	List<PropertyGet> getPropertyGets();
+
 	PropertyLet getPropertyLet(String name);
+
+	List<PropertyLet> getPropertyLets();
 
 	PropertySet getPropertySet(String name);
 
+	List<PropertySet> getPropertySets();
+
 	Sub getSub(String name);
+
+	List<Sub> getSubs();
+
+	CommonTokenStream getTokens();
 
 	io.proleap.vb6.asg.metamodel.Type getType(String name);
 

@@ -13,6 +13,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.antlr.v4.runtime.CommonTokenStream;
+
+import com.google.common.collect.Lists;
+
 import io.proleap.vb6.VisualBasic6Parser.ArgContext;
 import io.proleap.vb6.VisualBasic6Parser.AttributeStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.DeclareStmtContext;
@@ -38,6 +42,7 @@ import io.proleap.vb6.asg.metamodel.DefType;
 import io.proleap.vb6.asg.metamodel.Literal;
 import io.proleap.vb6.asg.metamodel.Module;
 import io.proleap.vb6.asg.metamodel.ModuleConfigElement;
+import io.proleap.vb6.asg.metamodel.Procedure;
 import io.proleap.vb6.asg.metamodel.ProcedureDeclaration;
 import io.proleap.vb6.asg.metamodel.Program;
 import io.proleap.vb6.asg.metamodel.ScopedElement;
@@ -90,6 +95,8 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 
 	protected Boolean optionPrivateModule;
 
+	protected List<Procedure> procedures = new ArrayList<Procedure>();
+
 	protected final Program program;
 
 	protected Map<String, PropertyGet> propertyGets = new HashMap<String, PropertyGet>();
@@ -100,16 +107,20 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 
 	protected Map<String, Sub> subs = new HashMap<String, Sub>();
 
+	protected CommonTokenStream tokens;
+
 	protected final Map<String, io.proleap.vb6.asg.metamodel.Type> types = new HashMap<String, io.proleap.vb6.asg.metamodel.Type>();
 
 	protected Double version;
 
-	public ModuleImpl(final String name, final Program program, final ModuleContext ctx) {
+	public ModuleImpl(final String name, final Program program, final CommonTokenStream tokens,
+			final ModuleContext ctx) {
 		super(program, null, program, ctx);
 
 		this.name = name;
 		this.program = program;
 		this.ctx = ctx;
+		this.tokens = tokens;
 		module = this;
 
 		registerASGElement(this);
@@ -244,6 +255,7 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 
 			registerStatement(result);
 			functions.put(name, result);
+			procedures.add(result);
 
 			if (ctx.argList() != null) {
 				for (final ArgContext argCtx : ctx.argList().arg()) {
@@ -334,6 +346,7 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 
 			registerStatement(result);
 			propertyGets.put(name, result);
+			procedures.add(result);
 
 			if (ctx.argList() != null) {
 				for (final ArgContext argCtx : ctx.argList().arg()) {
@@ -369,6 +382,7 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 
 			registerStatement(result);
 			propertyLets.put(name, result);
+			procedures.add(result);
 
 			if (ctx.argList() != null) {
 				for (final ArgContext argCtx : ctx.argList().arg()) {
@@ -392,6 +406,7 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 
 			registerStatement(result);
 			propertySets.put(name, result);
+			procedures.add(result);
 
 			if (ctx.argList() != null) {
 				for (final ArgContext argCtx : ctx.argList().arg()) {
@@ -415,6 +430,7 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 
 			registerStatement(result);
 			subs.put(name, result);
+			procedures.add(result);
 
 			if (ctx.argList() != null) {
 				for (final ArgContext argCtx : ctx.argList().arg()) {
@@ -503,6 +519,11 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 	}
 
 	@Override
+	public List<Function> getFunctions() {
+		return Lists.newArrayList(functions.values());
+	}
+
+	@Override
 	public List<String> getLines() {
 		return lines;
 	}
@@ -510,6 +531,11 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 	@Override
 	public String getName() {
 		return name;
+	}
+
+	@Override
+	public List<Procedure> getProcedures() {
+		return procedures;
 	}
 
 	@Override
@@ -523,13 +549,28 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 	}
 
 	@Override
+	public List<PropertyGet> getPropertyGets() {
+		return Lists.newArrayList(propertyGets.values());
+	}
+
+	@Override
 	public PropertyLet getPropertyLet(final String name) {
 		return propertyLets.get(name);
 	}
 
 	@Override
+	public List<PropertyLet> getPropertyLets() {
+		return Lists.newArrayList(propertyLets.values());
+	}
+
+	@Override
 	public PropertySet getPropertySet(final String name) {
 		return propertySets.get(name);
+	}
+
+	@Override
+	public List<PropertySet> getPropertySets() {
+		return Lists.newArrayList(propertySets.values());
 	}
 
 	@Override
@@ -551,6 +592,16 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 	@Override
 	public Sub getSub(final String name) {
 		return subs.get(name);
+	}
+
+	@Override
+	public List<Sub> getSubs() {
+		return Lists.newArrayList(subs.values());
+	}
+
+	@Override
+	public CommonTokenStream getTokens() {
+		return tokens;
 	}
 
 	@Override
