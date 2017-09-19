@@ -16,6 +16,7 @@ import static io.proleap.vb6.asg.util.CastUtils.castApiProperty;
 import static io.proleap.vb6.asg.util.CastUtils.castArg;
 import static io.proleap.vb6.asg.util.CastUtils.castComplexType;
 import static io.proleap.vb6.asg.util.CastUtils.castConst;
+import static io.proleap.vb6.asg.util.CastUtils.castElementVariable;
 import static io.proleap.vb6.asg.util.CastUtils.castEnumeration;
 import static io.proleap.vb6.asg.util.CastUtils.castEnumerationConstant;
 import static io.proleap.vb6.asg.util.CastUtils.castFunction;
@@ -39,7 +40,10 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.Lists;
+
 import io.proleap.vb6.VisualBasic6Parser;
+import io.proleap.vb6.VisualBasic6Parser.AmbiguousIdentifierContext;
 import io.proleap.vb6.VisualBasic6Parser.AppActivateStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.ArgCallContext;
 import io.proleap.vb6.VisualBasic6Parser.ArgsCallContext;
@@ -167,6 +171,7 @@ import io.proleap.vb6.asg.metamodel.call.ArrayElementCall;
 import io.proleap.vb6.asg.metamodel.call.Call;
 import io.proleap.vb6.asg.metamodel.call.Call.CallContext;
 import io.proleap.vb6.asg.metamodel.call.ConstantCall;
+import io.proleap.vb6.asg.metamodel.call.ElementVariableCall;
 import io.proleap.vb6.asg.metamodel.call.EnumerationCall;
 import io.proleap.vb6.asg.metamodel.call.EnumerationConstantCall;
 import io.proleap.vb6.asg.metamodel.call.FunctionCall;
@@ -187,6 +192,7 @@ import io.proleap.vb6.asg.metamodel.call.impl.ArrayElementCallImpl;
 import io.proleap.vb6.asg.metamodel.call.impl.CallDelegateImpl;
 import io.proleap.vb6.asg.metamodel.call.impl.ConstantCallImpl;
 import io.proleap.vb6.asg.metamodel.call.impl.DictionaryCallImpl;
+import io.proleap.vb6.asg.metamodel.call.impl.ElementVariableCallImpl;
 import io.proleap.vb6.asg.metamodel.call.impl.EnumerationCallImpl;
 import io.proleap.vb6.asg.metamodel.call.impl.EnumerationConstantCallImpl;
 import io.proleap.vb6.asg.metamodel.call.impl.FunctionCallImpl;
@@ -233,7 +239,9 @@ import io.proleap.vb6.asg.metamodel.statement.exit.Exit.ExitType;
 import io.proleap.vb6.asg.metamodel.statement.exit.impl.ExitImpl;
 import io.proleap.vb6.asg.metamodel.statement.explicitcallstmt.ExplicitCallStmt;
 import io.proleap.vb6.asg.metamodel.statement.explicitcallstmt.impl.ExplicitCallStmtImpl;
+import io.proleap.vb6.asg.metamodel.statement.foreach.ElementVariable;
 import io.proleap.vb6.asg.metamodel.statement.foreach.ForEach;
+import io.proleap.vb6.asg.metamodel.statement.foreach.impl.ElementVariableImpl;
 import io.proleap.vb6.asg.metamodel.statement.foreach.impl.ForEachImpl;
 import io.proleap.vb6.asg.metamodel.statement.fornext.ForNext;
 import io.proleap.vb6.asg.metamodel.statement.fornext.impl.ForNextImpl;
@@ -404,14 +412,14 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 
 	@Override
 	public Call addCall(final Call instanceCall, final ComplexType instanceType, final CallContext callContext,
-			final boolean isIntermediaMemberCall, final ICS_S_MemberCallContext ctx) {
+			final boolean isIntermediateMemberCall, final ICS_S_MemberCallContext ctx) {
 		Call result = (Call) getASGElement(ctx);
 
 		if (result == null) {
 			final Call delegatedCall;
 
 			if (ctx.iCS_S_VariableOrProcedureCall() != null) {
-				delegatedCall = addCall(instanceCall, instanceType, callContext, isIntermediaMemberCall,
+				delegatedCall = addCall(instanceCall, instanceType, callContext, isIntermediateMemberCall,
 						ctx.iCS_S_VariableOrProcedureCall());
 			} else if (ctx.iCS_S_ProcedureOrArrayCall() != null) {
 				delegatedCall = addCall(instanceCall, instanceType, ctx.iCS_S_ProcedureOrArrayCall());
@@ -429,7 +437,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 
 	@Override
 	public Call addCall(final Call instanceCall, final ComplexType instanceType, final CallContext callContext,
-			final boolean isIntermediaMemberCall, final ICS_S_VariableOrProcedureCallContext ctx) {
+			final boolean isIntermediateMemberCall, final ICS_S_VariableOrProcedureCallContext ctx) {
 		Call result = (Call) getASGElement(ctx);
 
 		if (result == null) {
@@ -458,6 +466,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 				final ApiEnumerationConstant apiEnumerationConstant = castApiEnumerationConstant(
 						referencedProgramElements);
 				final Constant constant = castConst(referencedProgramElements);
+				final ElementVariable elementVariable = castElementVariable(referencedProgramElements);
 				final Enumeration enumeration = castEnumeration(referencedProgramElements);
 				final EnumerationConstant enumerationConstant = castEnumerationConstant(referencedProgramElements);
 				final Function function = castFunction(referencedProgramElements);
@@ -471,26 +480,33 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 				/*
 				 * potentially, this let sets a return variable of a function or property get
 				 */
-				final Procedure procedure = this.findScope(Procedure.class);
-				final boolean hasProcedureName = procedure == null ? false : procedure.getName().equals(name);
+				final Function scopeFunction = this.findScope(Function.class);
+				final boolean hasScopeFunctionName = scopeFunction == null ? false
+						: scopeFunction.getName().equals(name);
+
+				final PropertyGet scopePropertyGet = this.findScope(PropertyGet.class);
+				final boolean hasScopePropertyGetName = scopePropertyGet == null ? false
+						: scopePropertyGet.getName().equals(name);
 
 				final boolean isLeftHandSideCall = CallContext.LET_LEFT_HAND_SIDE.equals(callContext);
 
-				if (instanceType == null && hasProcedureName) {
-					/*
-					 * return values can be read inside of functions or property gets
-					 */
-					if (propertyGet != null) {
-						final ReturnValueCall returnValueCall = new ReturnValueCallImpl(name, propertyGet, module, this,
-								ctx);
+				if (instanceType == null && hasScopeFunctionName) {
+					final ReturnValueCall returnValueCall = new ReturnValueCallImpl(name, scopeFunction, module, this,
+							ctx);
 
-						result = returnValueCall;
-					} else {
-						final ReturnValueCall returnValueCall = new ReturnValueCallImpl(name, function, module, this,
-								ctx);
+					result = returnValueCall;
+				} else if (instanceType == null && hasScopePropertyGetName) {
+					final ReturnValueCall returnValueCall = new ReturnValueCallImpl(name, scopePropertyGet, module,
+							this, ctx);
 
-						result = returnValueCall;
-					}
+					result = returnValueCall;
+				} else if (elementVariable != null) {
+					final ElementVariableCall elementVariableCall = new ElementVariableCallImpl(name, elementVariable,
+							module, this, ctx);
+
+					linkElementVariableCallWithElementVariable(elementVariableCall, elementVariable);
+
+					result = elementVariableCall;
 				} else if (variable != null && getModule().equals(variable.getModule())) {
 					final VariableCall variableCall = new VariableCallImpl(name, variable, module, this, ctx);
 
@@ -533,21 +549,21 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 					linkConstantCallWithConstant(constantCall, constant);
 
 					result = constantCall;
-				} else if (propertyGet != null && (!isLeftHandSideCall || isIntermediaMemberCall)) {
+				} else if (propertyGet != null && (!isLeftHandSideCall || isIntermediateMemberCall)) {
 					final PropertyGetCall propertyGetCall = new PropertyGetCallImpl(name, propertyGet, module, this,
 							ctx);
 
 					linkPropertyGetCallWithPropertyGet(propertyGetCall, propertyGet, (ArgsCallContext) null);
 
 					result = propertyGetCall;
-				} else if (propertyLet != null && isLeftHandSideCall && !isIntermediaMemberCall) {
+				} else if (propertyLet != null && isLeftHandSideCall && !isIntermediateMemberCall) {
 					final PropertyLetCall properyLetCall = new PropertyLetCallImpl(name, propertyLet, module, this,
 							ctx);
 
 					linkPropertyLetCallWithPropertySet(properyLetCall, propertyLet, null);
 
 					result = properyLetCall;
-				} else if (propertySet != null && isLeftHandSideCall && !isIntermediaMemberCall) {
+				} else if (propertySet != null && isLeftHandSideCall && !isIntermediateMemberCall) {
 					final PropertySetCall propertySetCall = new PropertySetCallImpl(name, propertySet, module, this,
 							ctx);
 
@@ -561,13 +577,13 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 					linkTypeElementCallWithTypeElement(typeElementCall, typeElement);
 
 					result = typeElementCall;
-				} else if (function != null && (!isLeftHandSideCall || isIntermediaMemberCall)) {
+				} else if (function != null && (!isLeftHandSideCall || isIntermediateMemberCall)) {
 					final FunctionCall functionCall = new FunctionCallImpl(name, function, module, this, ctx);
 
 					linkFunctionCallWithFunction(functionCall, function, (ArgsCallContext) null);
 
 					result = functionCall;
-				} else if (sub != null && (!isLeftHandSideCall || isIntermediaMemberCall)) {
+				} else if (sub != null && (!isLeftHandSideCall || isIntermediateMemberCall)) {
 					final SubCall subCall = new SubCallImpl(name, sub, module, this, ctx);
 
 					linkSubCallWithSub(subCall, sub, null);
@@ -613,7 +629,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 
 					result = apiEnumerationConstantCall;
 				} else {
-					LOG.warn("Call to unknown element {}.", name);
+					LOG.debug("Call to unknown element {}.", name);
 					result = new UndefinedCallImpl(name, null, module, this, ctx);
 				}
 			}
@@ -698,7 +714,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 
 					result = argCall;
 				} else {
-					LOG.warn("Call to unknown element {}.", name);
+					LOG.debug("Call to unknown element {}.", name);
 					result = new UndefinedCallImpl(name, null, module, this, ctx);
 				}
 			}
@@ -1217,6 +1233,22 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 	}
 
 	@Override
+	public ElementVariable addElementVariable(final AmbiguousIdentifierContext ctx) {
+		ElementVariable result = (ElementVariable) getASGElement(ctx);
+
+		if (result == null) {
+			final String name = determineName(ctx);
+			final Type type = determineType(ctx);
+
+			result = new ElementVariableImpl(name, type, module, this, ctx);
+
+			registerScopedElement(result);
+		}
+
+		return result;
+	}
+
+	@Override
 	public ElseBlock addElseBlock(final IfElseBlockStmtContext ctx) {
 		ElseBlock result = (ElseBlock) getASGElement(ctx);
 
@@ -1292,9 +1324,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 		if (result == null) {
 			result = new ForEachImpl(module, this, ctx);
 
-			final String elementVariableName = determineName(ctx);
-			final List<ModelElement> referencedProgramElements = getElements(null, null, elementVariableName);
-			final Variable elementVariable = castVariable(referencedProgramElements);
+			final ElementVariable elementVariable = addElementVariable(ctx.ambiguousIdentifier(0));
 			result.setElementVariable(elementVariable);
 
 			// in
@@ -1316,11 +1346,8 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 		if (result == null) {
 			result = new ForNextImpl(module, this, ctx);
 
-			final String iteratorVariableName = determineName(ctx);
-			final List<ModelElement> referencedProgramElements = getElements(null, null, iteratorVariableName);
-
-			final Variable iteratorVariable = castVariable(referencedProgramElements);
-			result.setIteratorVariable(iteratorVariable);
+			final Call counterCall = addCall(null, null, null, false, ctx.iCS_S_VariableOrProcedureCall());
+			result.setCounterCall(counterCall);
 
 			// from
 			if (!ctx.valueStmt().isEmpty()) {
@@ -2420,6 +2447,11 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 		return constants.get(name);
 	}
 
+	@Override
+	public List<Constant> getConstants() {
+		return Lists.newArrayList(constants.values());
+	}
+
 	/**
 	 * searches elements of the program by their name such as functions, variables,
 	 * api procedures etc.
@@ -2580,6 +2612,11 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 		return variables.get(name);
 	}
 
+	@Override
+	public List<Variable> getVariables() {
+		return Lists.newArrayList(variables.values());
+	}
+
 	protected void linkApiEnumerationCallWithApiEnumeration(final ApiEnumerationCall apiEnumerationCall,
 			final ApiEnumeration apiEnumeration) {
 		apiEnumeration.addApiEnumerationCall(apiEnumerationCall);
@@ -2665,6 +2702,11 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 
 	protected void linkConstantCallWithConstant(final ConstantCall constantCall, final Constant constant) {
 		constant.addConstantCall(constantCall);
+	}
+
+	protected void linkElementVariableCallWithElementVariable(final ElementVariableCall elementVariableCall,
+			final ElementVariable elementVariable) {
+		elementVariable.addElementVariableCall(elementVariableCall);
 	}
 
 	protected void linkEnumerationCallWithEnumeration(final EnumerationCall enumerationCall,

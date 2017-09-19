@@ -10,6 +10,7 @@ package io.proleap.vb6.asg.metamodel;
 
 import java.util.List;
 
+import io.proleap.vb6.VisualBasic6Parser.AmbiguousIdentifierContext;
 import io.proleap.vb6.VisualBasic6Parser.AppActivateStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.ArgCallContext;
 import io.proleap.vb6.VisualBasic6Parser.BeepStmtContext;
@@ -112,6 +113,7 @@ import io.proleap.vb6.asg.metamodel.statement.deletesetting.DeleteSetting;
 import io.proleap.vb6.asg.metamodel.statement.doloop.DoLoop;
 import io.proleap.vb6.asg.metamodel.statement.event.Event;
 import io.proleap.vb6.asg.metamodel.statement.exit.Exit;
+import io.proleap.vb6.asg.metamodel.statement.foreach.ElementVariable;
 import io.proleap.vb6.asg.metamodel.statement.foreach.ForEach;
 import io.proleap.vb6.asg.metamodel.statement.fornext.ForNext;
 import io.proleap.vb6.asg.metamodel.statement.ifstmt.BlockIfThenElse;
@@ -150,10 +152,10 @@ public interface Scope extends ScopedElement {
 
 	BlockIfThenElse addBlockIfThenElse(BlockIfThenElseContext ctx);
 
-	Call addCall(Call instanceCall, ComplexType instanceType, CallContext callContext, boolean isIntermediaMemberCall,
+	Call addCall(Call instanceCall, ComplexType instanceType, CallContext callContext, boolean isIntermediateMemberCall,
 			ICS_S_MemberCallContext ctx);
 
-	Call addCall(Call instanceCall, ComplexType instanceType, CallContext callContext, boolean isIntermediaMemberCall,
+	Call addCall(Call instanceCall, ComplexType instanceType, CallContext callContext, boolean isIntermediateMemberCall,
 			ICS_S_VariableOrProcedureCallContext ctx);
 
 	Call addCall(Call instanceCall, ComplexType instanceType, ICS_S_ProcedureOrArrayCallContext ctx);
@@ -195,6 +197,8 @@ public interface Scope extends ScopedElement {
 	DeleteSetting addDeleteSetting(DeleteSettingStmtContext ctx);
 
 	DoLoop addDoLoop(DoLoopStmtContext ctx);
+
+	ElementVariable addElementVariable(AmbiguousIdentifierContext ctx);
 
 	ElseBlock addElseBlock(IfElseBlockStmtContext ctx);
 
@@ -320,6 +324,8 @@ public interface Scope extends ScopedElement {
 
 	Constant getConstant(String name);
 
+	List<Constant> getConstants();
+
 	List<ScopedElement> getScopedElements();
 
 	List<ScopedElement> getScopedElementsInHierarchy(String name);
@@ -331,5 +337,7 @@ public interface Scope extends ScopedElement {
 	List<Scope> getSubScopes();
 
 	Variable getVariable(String name);
+
+	List<Variable> getVariables();
 
 }
